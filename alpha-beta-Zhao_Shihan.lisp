@@ -101,72 +101,73 @@
       ;; Case 3: else
       (t
        ;; for all moves in path, each move corresponding to a child
-       (dolist
-        (path paths)
-        (let
-          ;; calculate the child's eval
-          ;; call compute-min, since the next level has to be
-          ;; a min node
-          ;; apply one of the legal moves to get the new board
-          ;; use curr-depth++
-          ;; all the other parameters are simply pass down the tree
-          ((child-backprop
-            ;; this call modifies g
-            ;; therefore must immediately undo after getting eval
-            (compute-min (apply #'do-move! g nil path)
-                         (+ curr-depth 1)
-                         alpha
-                         beta
-                         statty
-                         cutoff-depth))
-           ;; correspond to current-max-id
-           ;; used to keep track of the current index into PATHS
-           (curr-ind 0))
-          (progn
-           ;; increment number of moves done by 1 in STATS
-           (incf (stats-num-moves-done statty))
-           ;; undo
-           (undo-move! g)
-           ;; current-max = max(current-max, child-backprop)
-           (when
-             (> child-backprop current-max)
-             (when
-               ;; only keep track of the best move when
-               ;; at root node
-               (= curr-depth 0)
-               (setf current-max-ind curr-ind))
-             ;; otherwise just update max eval value
-             (setf current-max child-backprop))
-           ;; alpha = max(alpha, child-backprop)
-           (when
-             (> child-backprop alpha)
-             (setf alpha child-backprop))
-           ;; if beta <= alpha
-           ;;		break
-           (when
-             (<= beta alpha)
-             ;; when breaking at root node, we want to return
-             ;; the best move rather than the maximum eval
-             (if (= curr-depth 0)
-               ;; if conditions don't allow for the exploration
-               ;; return nil
-               ;(if (not (= current-max-ind -1))
-                 (return-from compute-max (nth current-max-ind paths))
-                 ;(return-from compute-max nil))
-               (return-from compute-max current-max)))
-           ;; when at root node, update current index for every
-           ;; iteration
-           (when
-             (= curr-depth 0)
-             (incf curr-ind))
-           ;; if there is no pruning possible, just return
-           ;; best eval/best move
-           ; (if (= curr-depth 0)
-           ;   ;(if (not (= current-max-ind -1))
-           ;     (nth current-max-ind paths)
-           ;     ;nil)
-           ;   current-max)
-           'something)))))))
+       (mapcar
+        #'(lambda
+           (path)
+           (let
+             ;; calculate the child's eval
+             ;; call compute-min, since the next level has to be
+             ;; a min node
+             ;; apply one of the legal moves to get the new board
+             ;; use curr-depth++
+             ;; all the other parameters are simply pass down the tree
+             ((child-backprop
+               ;; this call modifies g
+               ;; therefore must immediately undo after getting eval
+               (compute-min (apply #'do-move! g nil path)
+                            (+ curr-depth 1)
+                            alpha
+                            beta
+                            statty
+                            cutoff-depth))
+              ;; correspond to current-max-id
+              ;; used to keep track of the current index into PATHS
+              (curr-ind 0))
+             (progn
+              ;; increment number of moves done by 1 in STATS
+              (incf (stats-num-moves-done statty))
+              ;; undo
+              (undo-move! g)
+              ;; current-max = max(current-max, child-backprop)
+              (when
+                (> child-backprop current-max)
+                (when
+                  ;; only keep track of the best move when
+                  ;; at root node
+                  (= curr-depth 0)
+                  (setf current-max-ind curr-ind))
+                ;; otherwise just update max eval value
+                (setf current-max child-backprop))
+              ;; alpha = max(alpha, child-backprop)
+              (when
+                (> child-backprop alpha)
+                (setf alpha child-backprop))
+              ;; if beta <= alpha
+              ;;		break
+              (when
+                (<= beta alpha)
+                ;; when breaking at root node, we want to return
+                ;; the best move rather than the maximum eval
+                (if (= curr-depth 0)
+                  ;; if conditions don't allow for the exploration
+                  ;; return nil
+                  (if (not (= current-max-ind -1))
+                    (return-from compute-max (nth current-max-ind paths))
+                    (return-from compute-max nil))
+                  (return-from compute-max current-max)))
+              ;; when at root node, update current index for every
+              ;; iteration
+              (when
+                (= curr-depth 0)
+                (incf curr-ind))
+              ;; if there is no pruning possible, just return
+              ;; best eval/best move
+              (if (= curr-depth 0)
+                (if (not (= current-max-ind -1))
+                  (nth current-max-ind paths)
+                  nil)
+                current-max))))
+        paths)))))
 
 ;;  COMPUTE-MIN
 ;; -------------------------------------------------------
@@ -201,31 +202,33 @@
          (- *win-value* curr-depth)
          (+ *loss-value* curr-depth)))
       (t
-       (dolist
-        (path paths)
-        (let
-          ((child-backprop
-            (compute-max (apply #'do-move! g nil path)
-                         (+ curr-depth 1)
-                         alpha
-                         beta
-                         statty
-                         cutoff-depth)))
-          (progn
-           (incf (stats-num-moves-done statty))
-           (undo-move! g)
-           (when
-             (< child-backprop current-min)
-             (setf current-min child-backprop))
-           (when
-             ;; flipped from alpha to beta
-             (< child-backprop beta)
-             (setf beta child-backprop))
-           (when
-             (<= beta alpha)
-             ;; flipped from current-max to current-mean
-             (return-from compute-min current-min))
-           current-min)))))))
+       (mapcar
+        #'(lambda
+           (path)
+           (let
+             ((child-backprop
+               (compute-max (apply #'do-move! g nil path)
+                            (+ curr-depth 1)
+                            alpha
+                            beta
+                            statty
+                            cutoff-depth)))
+             (progn
+              (incf (stats-num-moves-done statty))
+              (undo-move! g)
+              (when
+                (< child-backprop current-min)
+                (setf current-min child-backprop))
+              (when
+                ;; flipped from alpha to beta
+                (< child-backprop beta)
+                (setf beta child-backprop))
+              (when
+                (<= beta alpha)
+                ;; flipped from current-max to current-mean
+                (return-from compute-min current-min))
+              current-min)))
+        paths)))))
 
 
 ;;  MY-TEST
