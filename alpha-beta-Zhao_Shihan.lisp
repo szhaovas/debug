@@ -27,10 +27,10 @@
             num-moves-done
             num-moves-pruned)
     (format t "   BEST MOVE: (~d ~d ~d ~d)~%"
-            (svref best-move 0)
-            (svref best-move 1)
-            (svref best-move 2)
-            (svref best-move 3))
+            (first best-move)
+            (second best-move)
+            (third best-move)
+            (fourth best-move))
     best-move))
 
 
@@ -79,7 +79,8 @@
      ;; initialized to be -1 so that we know if it isn't modified
      ;; e.g. when cutoff-depth is 0, in which case just return
      ;; NIL
-     (current-max-ind -1))
+     (current-max-ind -1)
+     (alf alpha))
     ;; update num-potential-movess by the length of PATHS
     ;; i.e. num of moves added to the search space
     (setf (stats-num-potential-moves statty)
@@ -116,7 +117,7 @@
                ;; therefore must immediately undo after getting eval
                (compute-min (apply #'do-move! g nil path)
                             (+ curr-depth 1)
-                            alpha
+                            alf
                             beta
                             statty
                             cutoff-depth))
@@ -140,12 +141,12 @@
                 (setf current-max child-backprop))
               ;; alpha = max(alpha, child-backprop)
               (when
-                (> child-backprop alpha)
-                (setf alpha child-backprop))
+                (> child-backprop alf)
+                (setf alf child-backprop))
               ;; if beta <= alpha
               ;;		break
               (when
-                (<= beta alpha)
+                (<= beta alf)
                 ;; when breaking at root node, we want to return
                 ;; the best move rather than the maximum eval
                 (if (= curr-depth 0)
@@ -159,15 +160,15 @@
               ;; iteration
               (when
                 (= curr-depth 0)
-                (incf curr-ind))
-              ;; if there is no pruning possible, just return
-              ;; best eval/best move
-              (if (= curr-depth 0)
-                (if (not (= current-max-ind -1))
-                  (nth current-max-ind paths)
-                  nil)
-                current-max))))
-        paths)))))
+                (incf curr-ind)))))
+        paths)
+        ;; if there is no pruning possible, just return
+        ;; best eval/best move
+        (if (= curr-depth 0)
+          (if (not (= current-max-ind -1))
+            (nth current-max-ind paths)
+            nil)
+          current-max)))))
 
 ;;  COMPUTE-MIN
 ;; -------------------------------------------------------
@@ -186,7 +187,8 @@
     ;; No need to write codes for the tree root condition
     ;; because compute-min is typically never run first.
     ((paths (legal-moves g))
-     (current-min *pos-inf*))
+     (current-min *pos-inf*)
+     (bet beta))
     (setf (stats-num-potential-moves statty)
           (+ (stats-num-potential-moves statty)
              (length paths)))
@@ -210,25 +212,26 @@
                (compute-max (apply #'do-move! g nil path)
                             (+ curr-depth 1)
                             alpha
-                            beta
+                            bet
                             statty
                             cutoff-depth)))
              (progn
               (incf (stats-num-moves-done statty))
               (undo-move! g)
+              ;; current-min = min(child-backprop, current-min)
               (when
                 (< child-backprop current-min)
                 (setf current-min child-backprop))
+              ;; beta = min(child-backprop, beta)
               (when
-                ;; flipped from alpha to beta
-                (< child-backprop beta)
-                (setf beta child-backprop))
+                (< child-backprop bet)
+                (setf bet child-backprop))
               (when
-                (<= beta alpha)
-                ;; flipped from current-max to current-mean
-                (return-from compute-min current-min))
-              current-min)))
-        paths)))))
+                (<= bet alpha)
+                ;; return current-min instead of current max
+                (return-from compute-min current-min)))))
+        paths)
+       current-min))))
 
 
 ;;  MY-TEST
@@ -245,7 +248,7 @@
                             (list *rook* 0 4)
                             (list *rook* 2 5))
                       (list (list *king* 3 3)))))
-    (compute-do-and-show-n-moves g 2 2)
+    (compute-do-and-show-n-moves g 4 4)
     (format t "White should have taken black's king by now!~%")
     (format t "Game over? ~A~%" (game-over? g)))
   )
