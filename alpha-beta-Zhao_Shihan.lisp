@@ -80,8 +80,18 @@
      ;; e.g. when cutoff-depth is 0, in which case just return
      ;; NIL
      (current-max-ind -1)
+     ;; For each search node, we need its alpha value to be variable
+     ;; because we will pass its updated value to its children.
+     ;; A pointer would conveniently accomplish this requirement, but
+     ;; parameters are passed by value in Lisp.
+     ;; Therefore for each search node, we set aside a local pointer to
+     ;; be updated. The pointer will take its starting value from the
+     ;; alpha passed in as parameter, but can be frequently updated
+     ;; each child will be given the alpha value of its direct parent's
+     ;; local pointer at the time of calling.
+     ;; compute-min uses the same strategy but with beta.
      (alf alpha))
-    ;; update num-potential-movess by the length of PATHS
+    ;; update num-potential-moves by the length of PATHS
     ;; i.e. num of moves added to the search space
     (setf (stats-num-potential-moves statty)
           (+ (stats-num-potential-moves statty)
@@ -101,7 +111,7 @@
          (+ *loss-value* curr-depth)))
       ;; Case 3: else
       (t
-       ;; for all moves in path, each move corresponding to a child
+       ;; for all moves in paths array, each move corresponding to a child
        (mapcar
         #'(lambda
            (path)
@@ -109,9 +119,10 @@
              ;; calculate the child's eval
              ;; call compute-min, since the next level has to be
              ;; a min node
-             ;; apply one of the legal moves to get the new board
+             ;; apply one of the legal moves to get the child board
              ;; use curr-depth++
-             ;; all the other parameters are simply pass down the tree
+             ;; use the value of aforementioned alpha local pointer alf
+             ;; the remaining parameters are simply passed down the tree
              ((child-backprop
                ;; this call modifies g
                ;; therefore must immediately undo after getting eval
@@ -125,6 +136,7 @@
               ;; used to keep track of the current index into PATHS
               (curr-ind 0))
              (progn
+              ;; we just explored a branch
               ;; increment number of moves done by 1 in STATS
               (incf (stats-num-moves-done statty))
               ;; undo
@@ -146,7 +158,7 @@
               ;; if beta <= alpha
               ;;		break
               (when
-                (<= beta alf)
+                (<= beta current-max)
                 ;; when breaking at root node, we want to return
                 ;; the best move rather than the maximum eval
                 (if (= curr-depth 0)
@@ -227,7 +239,7 @@
                 (< child-backprop bet)
                 (setf bet child-backprop))
               (when
-                (<= bet alpha)
+                (<= current-min alpha)
                 ;; return current-min instead of current max
                 (return-from compute-min current-min)))))
         paths)
